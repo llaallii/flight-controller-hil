@@ -1,0 +1,172 @@
+<!--
+  Quadcopter MJCF Model for HIL Simulation
+  ==========================================
+  Frame: MuJoCo default — X forward, Y left, Z up (right-handed).
+  Total mass ≈ 1.5 kg.   Arm length (CG→motor) ≈ 0.22 m (diagonal ≈ 0.156 m each axis).
+  Max thrust per motor = 7.0 N  →  T/W ≈ 1.9.
+  Reaction torque ratio = 0.02  →  max |τ| = 0.14 Nm per motor.
+
+  Motor layout (Quad-X, viewed from above):
+
+         Front (+X)
+     M3 (CCW)    M1 (CW)
+         ╲          ╱
+           ╲      ╱
+             ╲  ╱
+             ╱  ╲
+           ╱      ╲
+         ╱          ╲
+     M2 (CW)     M4 (CCW)
+          Rear (−X)
+
+  Actuator gear = [0, 0, thrust_N, 0, 0, torque_Nm] in site frame (Z-up).
+  CW motors (1,2):  torque = −0.14   (reaction opposes spin)
+  CCW motors (3,4): torque = +0.14
+-->
+<mujoco model="quadcopter_hil">
+
+  <compiler angle="radian" autolimits="true"/>
+
+  <option timestep="0.001" gravity="0 0 -9.81" integrator="RK4">
+    <flag contact="enable" energy="enable"/>
+  </option>
+
+  <!-- ── Visual defaults ────────────────────────────────────────────────── -->
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0.2 0.2 0.2"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="120" elevation="-20"/>
+  </visual>
+
+  <default>
+    <geom rgba="0.6 0.6 0.6 1" condim="3" friction="1 0.5 0.5"/>
+    <joint damping="0.001"/>
+  </default>
+
+  <!-- ── Assets ─────────────────────────────────────────────────────────── -->
+  <asset>
+    <texture type="2d" name="grid_tex" builtin="checker" width="512" height="512"
+             rgb1="0.35 0.35 0.35" rgb2="0.45 0.45 0.45"/>
+    <material name="grid_mat" texture="grid_tex" texrepeat="20 20"
+              specular="0.1" shininess="0.1"/>
+    <texture type="skybox" name="sky_tex" builtin="gradient"
+             rgb1="0.4 0.6 0.8" rgb2="0.08 0.08 0.25"
+             width="512" height="3072"/>
+  </asset>
+
+  <!-- ── World ──────────────────────────────────────────────────────────── -->
+  <worldbody>
+    <!-- Ground -->
+    <geom name="ground" type="plane" size="50 50 0.1" material="grid_mat"
+          pos="0 0 0"/>
+
+    <!-- Sky light -->
+    <light name="sun" pos="0 0 20" dir="0 0.3 -1" castshadow="true"
+           diffuse="1 1 1" specular="0.3 0.3 0.3"/>
+
+    <!-- ════════ QUADCOPTER ════════ -->
+    <body name="drone" pos="0 0 0.5">
+      <freejoint name="root"/>
+
+      <!-- Central body (battery + electronics) -->
+      <geom name="fuselage" type="box" size="0.06 0.06 0.025"
+            mass="1.0" rgba="0.15 0.15 0.6 1"/>
+
+      <!-- ── Arms (capsule geoms, purely structural + visual) ── -->
+      <geom name="arm_fr" type="capsule" fromto="0 0 0  0.156 -0.156 0"
+            size="0.008" mass="0.04" rgba="0.7 0.15 0.15 1"/>
+      <geom name="arm_bl" type="capsule" fromto="0 0 0 -0.156  0.156 0"
+            size="0.008" mass="0.04" rgba="0.15 0.7 0.15 1"/>
+      <geom name="arm_fl" type="capsule" fromto="0 0 0  0.156  0.156 0"
+            size="0.008" mass="0.04" rgba="0.15 0.7 0.15 1"/>
+      <geom name="arm_br" type="capsule" fromto="0 0 0 -0.156 -0.156 0"
+            size="0.008" mass="0.04" rgba="0.7 0.15 0.15 1"/>
+
+      <!-- ── Motor housings ── -->
+      <geom name="mh1" type="cylinder" pos=" 0.156 -0.156 0.012"
+            size="0.022 0.012" mass="0.06" rgba="0.9 0.2 0.2 1"/>
+      <geom name="mh2" type="cylinder" pos="-0.156  0.156 0.012"
+            size="0.022 0.012" mass="0.06" rgba="0.2 0.9 0.2 1"/>
+      <geom name="mh3" type="cylinder" pos=" 0.156  0.156 0.012"
+            size="0.022 0.012" mass="0.06" rgba="0.2 0.2 0.9 1"/>
+      <geom name="mh4" type="cylinder" pos="-0.156 -0.156 0.012"
+            size="0.022 0.012" mass="0.06" rgba="0.9 0.9 0.2 1"/>
+
+      <!-- ── Motor force-application sites ── -->
+      <site name="motor1" pos=" 0.156 -0.156 0.025" size="0.004"/>
+      <site name="motor2" pos="-0.156  0.156 0.025" size="0.004"/>
+      <site name="motor3" pos=" 0.156  0.156 0.025" size="0.004"/>
+      <site name="motor4" pos="-0.156 -0.156 0.025" size="0.004"/>
+
+      <!-- ── IMU site (at CG) ── -->
+      <site name="imu_site" pos="0 0 0" size="0.008" rgba="1 1 0 0.8"/>
+
+      <!-- ── Forward-facing camera ── -->
+      <camera name="fpv_camera" pos="0.07 0 -0.015"
+              xyaxes="0 -1 0 0 0 1" fovy="90"/>
+
+      <!-- ── LiDAR site — Z-axis points DOWN for rangefinder ── -->
+      <site name="lidar_site" pos="0 0 -0.03" zaxis="0 0 -1"
+            size="0.006" rgba="0 1 1 0.8"/>
+
+      <!-- Nose marker (shows +X / forward) -->
+      <geom name="nose" type="box" pos="0.085 0 0"
+            size="0.025 0.004 0.004" mass="0.005" rgba="1 0.5 0 1"/>
+    </body>
+
+    <!-- ════════ ENVIRONMENT OBSTACLES (for LiDAR / camera testing) ════════ -->
+    <body name="wall_north" pos="5 0 1">
+      <geom type="box" size="0.1 3 1" rgba="0.75 0.25 0.25 0.9"/>
+    </body>
+    <body name="box_east" pos="0 -4 0.5">
+      <geom type="box" size="0.5 0.5 0.5" rgba="0.25 0.75 0.25 0.9"/>
+    </body>
+    <body name="pillar_sw" pos="-3 3 1.0">
+      <geom type="cylinder" size="0.35 1.0" rgba="0.25 0.25 0.75 0.9"/>
+    </body>
+    <body name="table" pos="3 -3 0.3">
+      <geom type="box" size="0.8 0.4 0.3" rgba="0.6 0.4 0.2 0.9"/>
+    </body>
+
+    <!-- Landing pad (visual reference) -->
+    <body name="pad" pos="0 0 0.001">
+      <geom type="cylinder" size="0.6 0.001" rgba="0.85 0.85 0.1 0.4"
+            contype="0" conaffinity="0"/>
+    </body>
+  </worldbody>
+
+  <!-- ════════ ACTUATORS ════════
+       Each general actuator applies a 6-D wrench at its site.
+       gear = [fx, fy, fz,  tx, ty, tz]  in site frame (≈ body frame here).
+       ctrl ∈ [0, 1]  →  thrust ∈ [0, 7.0] N,  torque ∈ [0, ±0.14] Nm.
+  -->
+  <actuator>
+    <!-- M1: Front-Right, CW spin → negative Z reaction torque -->
+    <general name="m1_thrust" site="motor1"
+             gear="0 0 7.0  0 0 -0.14" ctrlrange="0 1"
+             dyntype="none" gaintype="fixed" biastype="none"/>
+    <!-- M2: Back-Left, CW spin → negative Z reaction torque -->
+    <general name="m2_thrust" site="motor2"
+             gear="0 0 7.0  0 0 -0.14" ctrlrange="0 1"
+             dyntype="none" gaintype="fixed" biastype="none"/>
+    <!-- M3: Front-Left, CCW spin → positive Z reaction torque -->
+    <general name="m3_thrust" site="motor3"
+             gear="0 0 7.0  0 0  0.14" ctrlrange="0 1"
+             dyntype="none" gaintype="fixed" biastype="none"/>
+    <!-- M4: Back-Right, CCW spin → positive Z reaction torque -->
+    <general name="m4_thrust" site="motor4"
+             gear="0 0 7.0  0 0  0.14" ctrlrange="0 1"
+             dyntype="none" gaintype="fixed" biastype="none"/>
+  </actuator>
+
+  <!-- ════════ SENSORS ════════ -->
+  <sensor>
+    <!-- 3-axis accelerometer at CG (body-frame specific force) -->
+    <accelerometer name="imu_accel" site="imu_site" noise="0.005"/>
+    <!-- 3-axis gyroscope at CG (body-frame angular velocity) -->
+    <gyro          name="imu_gyro"  site="imu_site" noise="0.001"/>
+    <!-- Single-beam rangefinder, fires along site −Z (downward) -->
+    <rangefinder   name="lidar_alt" site="lidar_site"/>
+  </sensor>
+
+</mujoco>
