@@ -14,8 +14,9 @@ Hardware-in-the-Loop (HIL) multirotor simulation with a companion/flight-control
 All commands run from `hil/` directory.
 
 ```powershell
-# Install deps
-pip install -r requirements.txt
+# Create local conda env (one-time)
+conda env create --prefix ./.conda-env --file environment.yml
+conda activate ./.conda-env
 
 # Stage 1 — MuJoCo viewer + built-in hover controller (no ArduPilot, no FC)
 python bridge.py --stage 1

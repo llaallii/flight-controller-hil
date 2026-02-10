@@ -39,7 +39,7 @@ prototype to real STM32F407 firmware with only a transport swap.
 
 | Requirement | Version |
 |-------------|---------|
-| Python | 3.10+ (64-bit) |
+| Conda | Miniconda or Anaconda |
 | OS | Windows 10/11 |
 | GPU | Any with OpenGL (for MuJoCo viewer) |
 | ArduPilot SITL | Pre-built `ArduCopter.exe` or built from source in WSL2 |
@@ -48,11 +48,15 @@ prototype to real STM32F407 firmware with only a transport swap.
 
 ## Quick Start
 
-### 1. Install Python dependencies
+### 1. Create the local conda environment
+
+The environment is created **inside** the `hil/` folder (`.conda-env/`) so
+everything stays self-contained.
 
 ```powershell
 cd hil
-pip install -r requirements.txt
+conda env create --prefix ./.conda-env --file environment.yml
+conda activate ./.conda-env
 ```
 
 Verify MuJoCo is working:
@@ -60,6 +64,17 @@ Verify MuJoCo is working:
 ```powershell
 python -c "import mujoco; import mujoco.viewer; print('MuJoCo', mujoco.__version__, 'OK')"
 ```
+
+> **Updating the environment** after `environment.yml` changes:
+> ```powershell
+> conda env update --prefix ./.conda-env --file environment.yml --prune
+> ```
+>
+> **Removing the environment:**
+> ```powershell
+> conda deactivate
+> conda env remove --prefix ./.conda-env
+> ```
 
 ### 2. Stage 1 — Smoke test (no ArduPilot needed)
 
@@ -141,7 +156,8 @@ hil/
 ├── dummy_fc.py            Python dummy flight controller (Stage 2)
 ├── sensors.py             Sensor generation from MuJoCo state (IMU, GPS, LiDAR, camera)
 ├── config.py              Single source of truth for all constants
-├── requirements.txt       Python dependencies
+├── environment.yml        Conda environment definition (local prefix install)
+├── .conda-env/            Local conda environment (created by conda, git-ignored)
 ├── models/
 │   └── quadcopter.xml     MuJoCo MJCF model (body, motors, sensors, environment)
 └── docs/

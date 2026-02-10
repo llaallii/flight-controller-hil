@@ -2,23 +2,31 @@
 
 ## Prerequisites
 
-- Python 3.10+ (64-bit)
-- pip
+- Conda (Miniconda or Anaconda)
 - Git (for ArduPilot)
 
 ---
 
-## Step 1 — Install Python Dependencies
+## Step 1 — Create the Local Conda Environment
+
+The environment installs into `hil/.conda-env/` so it stays self-contained.
 
 ```powershell
 cd hil
-pip install -r requirements.txt
+conda env create --prefix ./.conda-env --file environment.yml
+conda activate ./.conda-env
 ```
 
 Verify MuJoCo viewer works:
 
-```python
+```powershell
 python -c "import mujoco; import mujoco.viewer; print('MuJoCo', mujoco.__version__, 'OK')"
+```
+
+To update after editing `environment.yml`:
+
+```powershell
+conda env update --prefix ./.conda-env --file environment.yml --prune
 ```
 
 ---
@@ -239,7 +247,7 @@ This is well within UDP localhost and 921600-baud serial capacity
 Use `mavproxy.py` to sniff traffic:
 
 ```powershell
-pip install MAVProxy
+pip install MAVProxy   # inside the activated .conda-env
 mavproxy.py --master=udp:127.0.0.1:14550 --console
 ```
 
