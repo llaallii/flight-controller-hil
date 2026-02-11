@@ -16,12 +16,12 @@ Usage
       python bridge.py --stage 1
 
   Stage 2 (full pipeline with ArduPilot + Dummy FC):
-      1) Start ArduPilot SITL:  arducopter.exe --model JSON -I0
+      1) Start ArduPilot SITL:  sim_vehicle.py -v Copter --model JSON -I0
       2) python bridge.py --stage 2
       3) python dummy_fc.py
 
   Stage 3 (STM32 replaces Dummy FC):
-      python bridge.py --stage 3 --serial COM3
+      python bridge.py --stage 3 --serial /dev/ttyUSB0
 """
 
 import argparse
@@ -72,7 +72,7 @@ class ArduPilotJSONBackend:
                 if key in obj:
                     self.servo[i] = float(obj[key])
             return True
-        except (BlockingIOError, OSError):
+        except (BlockingIOError, OSError, ValueError):
             return False
 
     def send_state(self, state_dict: dict):
@@ -333,7 +333,7 @@ def main():
     parser.add_argument("--stage", type=int, default=1, choices=[1, 2, 3],
                         help="1=standalone, 2=ArduPilot+DummyFC, 3=ArduPilot+STM32")
     parser.add_argument("--serial", type=str, default=None,
-                        help="COM port for Stage 3 (e.g. COM3)")
+                        help="Serial port for Stage 3 (e.g. /dev/ttyUSB0)")
     parser.add_argument("--model", type=str, default="models/quadcopter.xml",
                         help="Path to MJCF model")
     args = parser.parse_args()

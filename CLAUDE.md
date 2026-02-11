@@ -13,7 +13,7 @@ Hardware-in-the-Loop (HIL) multirotor simulation with a companion/flight-control
 
 All commands run from `hil/` directory.
 
-```powershell
+```bash
 # Create local conda env (one-time)
 conda env create --prefix ./.conda-env --file environment.yml
 conda activate ./.conda-env
@@ -21,13 +21,14 @@ conda activate ./.conda-env
 # Stage 1 — MuJoCo viewer + built-in hover controller (no ArduPilot, no FC)
 python bridge.py --stage 1
 
-# Stage 2 — Full pipeline (3 terminals)
-#   T1: arducopter.exe --model JSON -I0 --home -35.3632621,149.1652374,584,0
-#   T2: python bridge.py --stage 2
-#   T3: python dummy_fc.py
+# Stage 2 — Full pipeline (4 terminals, start in this order)
+#   T1: cd ~/ardupilot && Tools/autotest/sim_vehicle.py -v Copter --model JSON -I0 -l -35.3632621,149.1652374,584,0 --out=127.0.0.1:14550 --out=127.0.0.1:14551
+#   T2: python bridge.py --stage 2          (wait for AP=connected)
+#   T3: python dummy_fc.py                  (wait for FC=ok in bridge output)
+#   T4: python fly_mission.py                (interactive waypoints; or connect GCS to 127.0.0.1:14551)
 
 # Stage 3 — STM32 replaces dummy FC
-python bridge.py --stage 3 --serial COM3
+python bridge.py --stage 3 --serial /dev/ttyUSB0
 
 # Dummy FC at reduced rate (if 1 kHz overruns on your machine)
 python dummy_fc.py --rate 500
@@ -39,7 +40,7 @@ The system runs as up to three cooperating processes connected by UDP:
 
 1. **`bridge.py`** — Main process. Owns the MuJoCo model, steps physics at 1 kHz, syncs the viewer at 60 Hz, generates all sensor data, and routes MAVLink between ArduPilot and the FC. Contains `ArduPilotJSONBackend` (UDP JSON on port 9002), `MAVLinkManager` (pymavlink on ports 14550/14560/14561), and a `SimpleHoverController` for Stage 1 standalone testing.
 
-2. **ArduPilot SITL** — External binary (`arducopter.exe --model JSON`). Receives sim state via JSON, runs EKF + position/attitude controllers, outputs `ATTITUDE_TARGET` (body rates + thrust) on its MAVLink port. Its internal motor outputs (JSON servo data) are **intentionally ignored** — the FC closes the rate loop instead.
+2. **ArduPilot SITL** — External process launched via `sim_vehicle.py -v Copter --model JSON`. Receives sim state via JSON, runs EKF + position/attitude controllers, outputs `ATTITUDE_TARGET` (body rates + thrust) on its MAVLink port. Its internal motor outputs (JSON servo data) are **intentionally ignored** — the FC closes the rate loop instead.
 
 3. **`dummy_fc.py`** — Flight controller endpoint. Receives `SET_ATTITUDE_TARGET` (msg 82) + `SCALED_IMU` (msg 26), runs rate PID + Quad-X mixer, returns `SERVO_OUTPUT_RAW` (msg 36) motor PWMs. Uses the **exact same MAVLink contract** the future STM32 firmware will use — swapping to Stage 3 changes only the transport (UDP → serial).
 
@@ -81,4 +82,4 @@ Documented in `hil/docs/STM32_PLAN.md`. The FC message contract is frozen:
 - **Receives:** `SET_ATTITUDE_TARGET` (82), `SCALED_IMU` (26)
 - **Sends:** `SERVO_OUTPUT_RAW` (36), `HEARTBEAT` (0)
 - Transport changes from UDP to UART serial (921600 baud, DMA circular RX).
-- Bridge handles the swap via `--stage 3 --serial COMx`.
+- Bridge handles the swap via `--stage 3 --serial /dev/ttyUSB0`.

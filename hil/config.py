@@ -37,7 +37,7 @@ FC_LISTEN_PORT          = 14561     # FC binds; Bridge sends setpoints + IMU her
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Stage 3 — Serial transport (replaces UDP between Bridge and STM32)
 # ═══════════════════════════════════════════════════════════════════════════════
-STM32_SERIAL_PORT       = "COM3"    # Adjust to actual port
+STM32_SERIAL_PORT       = "/dev/ttyUSB0"  # Adjust to actual port (e.g. /dev/ttyACM0)
 STM32_BAUD_RATE         = 921600    # MAVLink v2 @ 921600 baud
 
 # ═══════════════════════════════════════════════════════════════════════════════

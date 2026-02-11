@@ -7,7 +7,7 @@ to the MuJoCo bridge or ArduPilot configuration.  The only difference is transpo
 
 | | Stage 2 (Dummy FC) | Stage 3 (STM32) |
 |---|---|---|
-| **Transport** | UDP localhost | UART Serial (COM port) |
+| **Transport** | UDP localhost | UART Serial (/dev/ttyUSB0) |
 | **sysid / compid** | 3 / 1 | 3 / 1 |
 | **Messages received** | SET_ATTITUDE_TARGET (82), SCALED_IMU (26) | Same |
 | **Messages transmitted** | SERVO_OUTPUT_RAW (36), HEARTBEAT (0) | Same |
@@ -214,8 +214,8 @@ When moving from Stage 2 → Stage 3:
 
 1. Stop `dummy_fc.py`.
 2. Flash STM32 with firmware (same PID gains, same MAVLink messages).
-3. Connect STM32 USART2 pins to USB-Serial adapter → PC COM port.
-4. Run bridge with: `python bridge.py --stage 3 --serial COM3`
+3. Connect STM32 USART2 pins to USB-Serial adapter → Linux serial device.
+4. Run bridge with: `python bridge.py --stage 3 --serial /dev/ttyUSB0`
 5. Verify heartbeat appears in bridge logs.
 6. Arm and fly — same ArduPilot mission, same MuJoCo model.
 

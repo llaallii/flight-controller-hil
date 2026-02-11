@@ -3,7 +3,7 @@
 ## 1. System Overview
 
 ```
-┌─────────────────────────── PC (Windows) ─────────────────────────────┐
+┌─────────────────────────── PC (WSL / Linux) ─────────────────────────┐
 │                                                                       │
 │  ┌──────────────┐   JSON UDP    ┌──────────────────────────────────┐  │
 │  │ ArduPilot    │◄────────────► │  MuJoCo Bridge  (bridge.py)     │  │
@@ -32,7 +32,7 @@
 
 ```mermaid
 flowchart LR
-    subgraph PC ["PC (Windows)"]
+    subgraph PC ["PC (WSL / Linux)"]
         MJ["MuJoCo\n1kHz physics\n60Hz viewer"]
         BR["Bridge\nbridge.py"]
         AP["ArduPilot\nSITL"]
@@ -144,7 +144,7 @@ only metadata + timestamps for synchronization.
 | ArduPilot SITL | 1 | 1 | JSON: UDP :9002 / MAVLink: UDP :14550 |
 | MuJoCo Bridge | 2 | 1 | JSON: binds :9002 / MAVLink: binds :14550, sends to :14561 |
 | Flight Controller | 3 | 1 | **Stage 2:** UDP binds :14561, sends to :14560 |
-| | | | **Stage 3:** Serial COM3 @ 921600 baud |
+| | | | **Stage 3:** Serial /dev/ttyUSB0 @ 921600 baud |
 
 ## 7. Coordinate Frame Transforms
 
@@ -181,15 +181,15 @@ where R_ned = T × R_mj × T,  T = diag(1,-1,-1)
 - Dummy FC runs rate PID + mixer, returns motor outputs.
 - Full closed-loop visible in MuJoCo GUI.
 - Run (3 terminals):
-  1. `arducopter.exe --model JSON -I0`
+  1. `sim_vehicle.py -v Copter --model JSON -I0`
   2. `python bridge.py --stage 2`
   3. `python dummy_fc.py`
 
 ### Stage 3 — STM32 Replaces Dummy FC
 - Stop `dummy_fc.py`.
 - Flash STM32F407 with C firmware (same message contract).
-- Connect STM32 via USB-Serial adapter (COM3 @ 921600).
-- Run: `python bridge.py --stage 3 --serial COM3`
+- Connect STM32 via USB-Serial adapter (/dev/ttyUSB0 @ 921600).
+- Run: `python bridge.py --stage 3 --serial /dev/ttyUSB0`
 - Everything else unchanged.
 
 ## 9. Motor Layout & Mixer

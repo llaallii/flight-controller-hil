@@ -1,9 +1,10 @@
-# Build & Run Instructions (Windows)
+# Build & Run Instructions (WSL / Linux)
 
 ## Prerequisites
 
 - Conda (Miniconda or Anaconda)
 - Git (for ArduPilot)
+- Ubuntu packages for ArduPilot build (installed by `install-prereqs-ubuntu.sh`)
 
 ---
 
@@ -11,7 +12,7 @@
 
 The environment installs into `hil/.conda-env/` so it stays self-contained.
 
-```powershell
+```bash
 cd hil
 conda env create --prefix ./.conda-env --file environment.yml
 conda activate ./.conda-env
@@ -19,47 +20,36 @@ conda activate ./.conda-env
 
 Verify MuJoCo viewer works:
 
-```powershell
+```bash
 python -c "import mujoco; import mujoco.viewer; print('MuJoCo', mujoco.__version__, 'OK')"
 ```
 
 To update after editing `environment.yml`:
 
-```powershell
+```bash
 conda env update --prefix ./.conda-env --file environment.yml --prune
 ```
 
 ---
 
-## Step 2 — Install ArduPilot SITL on Windows
-
-### Option A: Pre-built binary (simplest)
-
-1. Download the latest ArduCopter SITL for Windows:
-   - Go to https://firmware.ardupilot.org/Tools/MissionPlanner/sitl/
-   - Download `ArduCopter.exe` (or the zip containing it)
-   - Place it in a known directory, e.g. `C:\ardupilot-sitl\`
-
-2. Create a default parameter file `copter.parm` alongside the exe:
-   ```
-   # Minimal params for JSON backend
-   FRAME_CLASS 1
-   FRAME_TYPE  1
-   ```
-
-### Option B: Build from source (WSL2)
+## Step 2 — Build ArduPilot SITL in WSL / Linux
 
 ```bash
-# In WSL2 Ubuntu:
+# Clone ArduPilot (if not already done)
 git clone --recurse-submodules https://github.com/ArduPilot/ardupilot.git
 cd ardupilot
+
+# Install build prerequisites (one-time)
 Tools/environment_install/install-prereqs-ubuntu.sh -y
 . ~/.profile
+
+# Build SITL
 ./waf configure --board sitl
 ./waf copter
 ```
 
-Run from WSL2 — UDP still reaches Windows localhost.
+The built binary lands in `ardupilot/build/sitl/bin/arducopter`.
+You can also use `sim_vehicle.py` which handles the build and launch automatically.
 
 ---
 
@@ -67,7 +57,7 @@ Run from WSL2 — UDP still reaches Windows localhost.
 
 This stage uses a built-in hover controller — no ArduPilot, no FC needed.
 
-```powershell
+```bash
 cd hil
 python bridge.py --stage 1
 ```
@@ -91,21 +81,27 @@ Press Ctrl+C or close the viewer window to stop.
 
 ## Step 4 — Stage 2: Full Pipeline (ArduPilot + Dummy FC)
 
-Open **three terminals** (PowerShell or CMD):
+Open **four terminals** and start them **in this order**:
 
-### Terminal 1: ArduPilot SITL
+### Terminal 1: ArduPilot SITL (start first)
 
-```powershell
-cd C:\ardupilot-sitl
-.\ArduCopter.exe --model JSON -I0 --home -35.3632621,149.1652374,584,0
+```bash
+cd ~/ardupilot
+Tools/autotest/sim_vehicle.py -v Copter --model JSON -I0 \
+  -l -35.3632621,149.1652374,584,0 \
+  --out=127.0.0.1:14550 --out=127.0.0.1:14551
 ```
 
-ArduPilot will start and wait for the JSON backend to connect on UDP :9002.
-It also opens MAVLink output on UDP :14550.
+> **WSL2 note:** The `--out=127.0.0.1:...` flags are **required** on WSL2.
+> Without them, MavProxy auto-detects the Windows host IP (e.g. `172.x.x.x`)
+> and sends MAVLink there instead of localhost. The bridge and notebook will
+> never receive MAVLink messages.
 
-### Terminal 2: MuJoCo Bridge
+Wait for the build to finish and MAVProxy to print its prompt.
 
-```powershell
+### Terminal 2: MuJoCo Bridge (start second)
+
+```bash
 cd hil
 python bridge.py --stage 2
 ```
@@ -116,38 +112,32 @@ The bridge will:
 - Send setpoints to UDP :14561 (Dummy FC).
 - Listen on UDP :14560 (motor outputs from FC).
 
-Console should show "AP=connected" after ArduPilot links up.
+Wait until console shows `AP=connected`.
 
-### Terminal 3: Dummy Flight Controller
+### Terminal 3: Dummy Flight Controller (start third)
 
-```powershell
+```bash
 cd hil
 python dummy_fc.py
 ```
 
-Console should show periodic status logs with setpoints and motor values.
+Wait until the bridge console shows `FC=ok`.
 
-### Flying a Mission
+### Terminal 4: Flying a Mission (start last)
 
-Connect a GCS (Mission Planner, QGroundControl) to ArduPilot's MAVLink port
-to upload waypoints, arm, and fly:
-
-```
-QGC connection: UDP :14551  (ArduPilot's second GCS output)
+```bash
+cd hil
+python fly_mission.py
 ```
 
-Or use pymavlink scripting:
+The script connects to ArduPilot, arms, and interactively asks for takeoff
+altitude and waypoints (N,E offsets in metres). Ctrl+C triggers immediate
+LAND for safety.
 
-```python
-from pymavlink import mavutil
-m = mavutil.mavlink_connection('udp:127.0.0.1:14551')
-m.wait_heartbeat()
+Or connect a GCS (Mission Planner, QGroundControl) to ArduPilot's MAVLink port:
 
-# Arm
-m.mav.command_long_send(1, 1, 400, 0, 1, 0, 0, 0, 0, 0, 0)
-
-# Takeoff to 5m
-m.mav.command_long_send(1, 1, 22, 0, 0, 0, 0, 0, 0, 0, 5)
+```
+QGC connection: UDP 127.0.0.1:14551  (ArduPilot's second GCS output)
 ```
 
 **What to verify:**
@@ -165,11 +155,11 @@ m.mav.command_long_send(1, 1, 22, 0, 0, 0, 0, 0, 0, 0, 5)
 1. Stop `dummy_fc.py` (Ctrl+C).
 2. Flash STM32F407 with firmware matching the same MAVLink contract.
 3. Connect STM32 USART2 to PC via USB-Serial adapter.
-4. Note the COM port (e.g., COM3).
+4. Find the serial device (e.g., `ls /dev/ttyUSB*` or `ls /dev/ttyACM*`).
 5. Restart bridge:
 
-```powershell
-python bridge.py --stage 3 --serial COM3
+```bash
+python bridge.py --stage 3 --serial /dev/ttyUSB0
 ```
 
 6. Verify FC heartbeat appears in bridge logs.
@@ -191,8 +181,22 @@ python bridge.py --stage 3 --serial COM3
 
 - Ensure ArduPilot is started with `--model JSON`.
 - Check that no other process is binding UDP :9002.
-- Try `netstat -ano | findstr 9002` to check port usage.
+- Try `ss -tulnp | grep 9002` to check port usage.
 - ArduPilot may take 5–10 seconds to initialize before sending JSON.
+
+### WSL2: Bridge never gets ATTITUDE_TARGET / notebook hangs on wait_heartbeat
+
+On WSL2, `sim_vehicle.py` auto-detects the Windows host IP (e.g. `172.x.x.x`)
+and routes MavProxy's MAVLink output there instead of localhost. The bridge
+and notebook never receive any MAVLink messages.
+
+**Fix:** always pass explicit `--out` flags pointing to `127.0.0.1`:
+
+```bash
+Tools/autotest/sim_vehicle.py -v Copter --model JSON -I0 \
+  -l -35.3632621,149.1652374,584,0 \
+  --out=127.0.0.1:14550 --out=127.0.0.1:14551
+```
 
 ### Dummy FC shows "FAILSAFE"
 
@@ -202,6 +206,7 @@ python bridge.py --stage 3 --serial COM3
   this stream when it first receives a heartbeat from ArduPilot.
 - Ensure ArduPilot is armed and in a flight mode (GUIDED, LOITER, AUTO).
   Un-armed ArduPilot may not output rate commands.
+- **On WSL2:** see the note above about `--out` flags.
 
 ### Drone flips immediately
 
@@ -223,9 +228,9 @@ python bridge.py --stage 3 --serial COM3
 
 - Ensure GPU drivers are up to date.
 - `launch_passive` requires a GPU. If running in a VM or remote desktop,
-  use software rendering: `set MUJOCO_GL=egl` (Linux) or try
-  `set MUJOCO_GL=osmesa` before running.
-- On Windows with multiple GPUs, ensure the correct GPU is selected.
+  use software rendering: `export MUJOCO_GL=egl` or try
+  `export MUJOCO_GL=osmesa` before running.
+- On WSL2, ensure a display server (e.g., WSLg) is available for the GUI viewer.
 
 ### MAVLink bandwidth concerns
 
@@ -246,7 +251,7 @@ This is well within UDP localhost and 921600-baud serial capacity
 
 Use `mavproxy.py` to sniff traffic:
 
-```powershell
+```bash
 pip install MAVProxy   # inside the activated .conda-env
 mavproxy.py --master=udp:127.0.0.1:14550 --console
 ```
